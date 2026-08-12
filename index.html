@@ -71,11 +71,12 @@
       top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0,0,0,0.75);
       justify-content: center;
-      align-items: center;
+      overflow-y: auto;
       z-index: 10;
     }
     .modal.active { display: flex; }
     .modal-box {
+      margin: auto;
       background: #16213e;
       border: 2px solid #e94560;
       border-radius: 12px;
@@ -213,6 +214,16 @@
       canvas { width: 100%; height: auto; }
       .touch-btn { width: 48px; height: 48px; font-size: 18px; }
       .touch-btn-jump { width: 72px; height: 48px; font-size: 15px; }
+      .ui-overlay { font-size: 11px; padding: 5px 10px; }
+      .ui-overlay span { padding: 3px 8px; }
+      .toast { font-size: 11px; padding: 6px 12px; bottom: 56px; }
+      .modal-box { padding: 16px 14px; }
+      .modal-box h2 { font-size: 18px; }
+      .modal-box .pregunta { font-size: 15px; margin: 12px 0; min-height: 0; }
+      .modal-box button { font-size: 14px; padding: 10px; }
+      .modal-box .feedback { font-size: 14px; }
+      .modal-box .nivel-tag { font-size: 11px; }
+      .modal-box .btn-continuar { font-size: 15px; padding: 10px 20px; }
     }
   </style>
 </head>
