@@ -1,0 +1,2059 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Escape Room 2D</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1a1a2e;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+      overflow: hidden;
+    }
+    .game-wrapper {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+    canvas {
+      display: block;
+      border: 3px solid #e94560;
+      border-radius: 8px;
+      box-shadow: 0 0 40px rgba(233, 69, 96, 0.3);
+    }
+
+    .ui-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 16px;
+      color: #fff;
+      font-size: 14px;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+      pointer-events: none;
+      z-index: 5;
+    }
+    .ui-overlay span { background: rgba(0,0,0,0.6); padding: 4px 10px; border-radius: 4px; }
+    .llaves-hud { display: inline-flex; gap: 3px; vertical-align: middle; }
+    .llave-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      display: inline-block; border: 1px solid rgba(255,255,255,0.35);
+    }
+    .toast {
+      position: absolute;
+      left: 50%;
+      bottom: 70px;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.8);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid #e94560;
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity 0.25s;
+      pointer-events: none;
+      z-index: 9;
+      white-space: nowrap;
+    }
+    .toast.visible { opacity: 1; }
+
+    /* Modal */
+    .modal {
+      display: none;
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.75);
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+    }
+    .modal.active { display: flex; }
+    .modal-box {
+      background: #16213e;
+      border: 2px solid #e94560;
+      border-radius: 12px;
+      padding: 30px 35px;
+      max-width: 500px;
+      width: 90%;
+      text-align: center;
+      color: #fff;
+      box-shadow: 0 0 60px rgba(233,69,96,0.4);
+    }
+    .modal-box h2 {
+      font-size: 22px;
+      margin-bottom: 8px;
+      color: #e94560;
+    }
+    .modal-box .nivel-tag {
+      display: inline-block;
+      background: #0f3460;
+      padding: 2px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      color: #a0c4ff;
+      margin-bottom: 16px;
+    }
+    .modal-box .pregunta {
+      font-size: 18px;
+      margin: 20px 0;
+      line-height: 1.5;
+      min-height: 60px;
+    }
+    .modal-box .opciones {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .modal-box button {
+      background: #0f3460;
+      color: #fff;
+      border: 2px solid #533483;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 16px;
+      font-family: 'Courier New', monospace;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .modal-box button:hover {
+      background: #533483;
+      border-color: #e94560;
+      transform: scale(1.03);
+    }
+    .modal-box button:active { transform: scale(0.97); }
+    .modal-box button.correcto {
+      background: #1b8a3d;
+      border-color: #2ecc71;
+    }
+    .modal-box button.incorrecto {
+      background: #8a1b1b;
+      border-color: #e74c3c;
+    }
+    .modal-box .feedback {
+      margin-top: 16px;
+      font-size: 16px;
+      min-height: 24px;
+    }
+    .modal-box .feedback.ok { color: #2ecc71; }
+    .modal-box .feedback.fail { color: #e74c3c; }
+    .modal-box .btn-continuar {
+      display: none;
+      margin-top: 16px;
+      background: #e94560;
+      border-color: #e94560;
+    }
+    .modal-box .btn-continuar.visible { display: inline-block; }
+
+    /* Victoria */
+    .modal-box.victoria h2 { color: #f1c40f; }
+    .modal-box.victoria .emoji-grande { font-size: 64px; margin: 10px 0; }
+
+    /* Controles táctiles */
+    .touch-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 20px 14px;
+      gap: 12px;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .touch-group {
+      display: flex;
+      gap: 12px;
+    }
+    .touch-btn {
+      width: 60px;
+      height: 60px;
+      border: 2px solid #533483;
+      border-radius: 12px;
+      background: rgba(15, 52, 96, 0.85);
+      color: #fff;
+      font-size: 22px;
+      font-family: 'Courier New', monospace;
+      cursor: pointer;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      transition: background 0.15s, transform 0.1s, border-color 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .touch-btn:active,
+    .touch-btn.pulsado {
+      background: rgba(83, 52, 131, 0.9);
+      border-color: #e94560;
+      transform: scale(0.93);
+    }
+    .touch-btn-jump {
+      width: 90px;
+      height: 60px;
+      font-size: 18px;
+      background: rgba(233, 69, 96, 0.7);
+      border-color: #e94560;
+    }
+    .touch-btn-jump:active,
+    .touch-btn-jump.pulsado {
+      background: rgba(233, 69, 96, 0.95);
+      border-color: #ff6b81;
+    }
+    @media (max-width: 820px) {
+      canvas { width: 100%; height: auto; }
+      .touch-btn { width: 48px; height: 48px; font-size: 18px; }
+      .touch-btn-jump { width: 72px; height: 48px; font-size: 15px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="game-wrapper" id="gameWrapper">
+  <canvas id="gameCanvas" width="800" height="500"></canvas>
+
+  <!-- UI -->
+  <div class="ui-overlay">
+    <span id="nivelDisplay">Nivel 1</span>
+    <span id="puertasDisplay">Puertas: 0</span>
+    <span id="llavesDisplay">🔑 <span class="llaves-hud"></span></span>
+  </div>
+  <div class="toast" id="toastHint"></div>
+
+  <!-- Modal de preguntas -->
+  <div class="modal" id="quizModal">
+    <div class="modal-box" id="modalBox">
+      <h2>🚪 Puerta Encontrada</h2>
+      <span class="nivel-tag" id="modalNivelTag">Nivel 1</span>
+      <div class="pregunta" id="modalPregunta">¿Cargando pregunta...</div>
+      <div class="opciones" id="modalOpciones"></div>
+      <div class="feedback" id="modalFeedback"></div>
+      <button class="btn-continuar" id="btnContinuar">Continuar ▶</button>
+    </div>
+  </div>
+
+  <!-- Modal de victoria -->
+  <div class="modal" id="victoriaModal">
+    <div class="modal-box victoria">
+      <div class="emoji-grande">🏆</div>
+      <h2>¡Felicidades!</h2>
+      <p style="margin: 16px 0; font-size: 18px;">
+        Has superado todos los cuartos.<br>
+        <strong>¡Eres un verdadero escapista!</strong>
+      </p>
+      <button onclick="location.reload()" style="background:#f1c40f;color:#1a1a2e;border:2px solid #f1c40f;border-radius:8px;padding:12px 30px;font-size:18px;font-family:'Courier New',monospace;cursor:pointer;font-weight:bold;">
+        🔄 Jugar de nuevo
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal de Game Over -->
+  <div class="modal" id="gameOverModal">
+    <div class="modal-box">
+      <div style="font-size:64px;margin:10px 0;">💀</div>
+      <h2 style="color:#e74c3c;">Has Perdido</h2>
+      <p style="margin:16px 0;font-size:18px;">
+        Te quedaste sin puertas disponibles.<br>
+        <strong>¡Inténtalo de nuevo!</strong>
+      </p>
+      <button onclick="reiniciarJuego()" style="background:#e74c3c;color:#fff;border:2px solid #e74c3c;border-radius:8px;padding:12px 30px;font-size:18px;font-family:'Courier New',monospace;cursor:pointer;font-weight:bold;">
+        🔄 Reiniciar juego
+      </button>
+    </div>
+  </div>
+
+  <!-- Controles táctiles -->
+  <div class="touch-controls">
+    <div class="touch-group">
+      <button class="touch-btn" id="btnLeft">◀</button>
+      <button class="touch-btn" id="btnRight">▶</button>
+    </div>
+    <button class="touch-btn touch-btn-jump" id="btnJump">▲ Saltar</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  NIVELES
+// ============================================================
+const NIVELES = [
+  // --- NIVEL 1 (llaves + enemigos + 4 puertas) ---
+  {
+    nombre: 'Nivel 1 - El Vestíbulo',
+    colorFondo: '#0f0c29',
+    colorSuelo: '#302b63',
+    plataformas: [
+      { x: 0, y: 460, w: 800, h: 40 },   // plataforma 0 (suelo)
+      { x: 400, y: 380, w: 180, h: 20 }, // plataforma 1
+      { x: 120, y: 280, w: 200, h: 20 }, // plataforma 2
+      { x: 400, y: 180, w: 180, h: 20 }, // plataforma 3
+      { x: 620, y: 80, w: 200, h: 20 },  // plataforma 4
+    ],
+    llaves: [
+      { x: 80, y: 430, puertaId: 1 },
+      { x: 700, y: 430, puertaId: 0 },
+      { x: 330, y: 140, puertaId: 2 },
+      { x: 550, y: 45, puertaId: 3},
+    ],
+    puertas: [
+      { x: 470, y: 336, w: 32, h: 44 },
+      { x: 200, y: 236, w: 32, h: 44 },
+      { x: 470, y: 136, w: 32, h: 44 },
+      { x: 670, y: 36, w: 32, h: 44 },
+    ],
+    enemigos: [
+      { x: 500, y: 356 }, // enemigo de la plataforma 1
+      { x: 210, y: 256 }, //en enemigo de la plataforma 2
+      { x: 480, y: 156 }, // enemigo de la plataforma 3
+      { x: 670, y: 56 }, // enemigo en la plataforma 4
+    ],
+    preguntas: [
+      { texto: 'La adicción es una falta de voluntad.', opciones: ['Verdadero', 'Falso'], correcta: 1 },
+      { texto: 'Todas las personas que consumen drogas desarrollan una adicción.', opciones: ['Verdadero', 'Falso'], correcta: 1 },
+      { texto: 'El tratamiento de adicciones siempre requiere hospitalización.', opciones: ['Verdadero', 'Falso'], correcta: 1 },
+    ]
+  },
+
+  // --- NIVEL 2 - La Biblioteca ---
+  {
+    nombre: 'Nivel 2 - La Biblioteca',
+    colorFondo: '#2a1a0e',
+    colorSuelo: '#4a3520',
+    plataformas: [
+      { x: 0, y: 460, w: 800, h: 40 }, // plataforma 0 (suelo)
+      { x: 50, y: 390, w: 150, h: 20 }, // plataforma 1
+      { x: 300, y: 350, w: 180, h: 20 }, // plataforma 2
+      { x: 550, y: 290, w: 180, h: 20 }, // plataforma 3
+      { x: 180, y: 220, w: 180, h: 20 }, // plataforma 4
+      { x: 430, y: 150, w: 150, h: 20 }, // plataforma 5
+      { x: 630, y: 80, w: 120, h: 20 },  // plataforma 6
+    ],
+llaves: [
+      { x: 80, y: 360 },
+      { x: 690, y: 260 },
+      { x: 330, y: 190 },
+      { x: 460, y: 120 },
+      { x: 640, y: 50 },
+    ],
+    puertas: [
+      { x: 150, y: 346, w: 32, h: 44 },
+      { x: 350, y: 306, w: 32, h: 44 },
+      { x: 600, y: 246, w: 32, h: 44 },
+      { x: 250, y: 176, w: 32, h: 44 },
+      { x: 680, y: 36, w: 32, h: 44 },
+    ],
+    enemigos: [
+      { x: 120, y: 366 },
+      { x: 320, y: 326 },
+      { x: 560, y: 266 },
+      { x: 220, y: 196 },
+      { x: 470, y: 126 },
+      { x: 650, y: 56 },
+    ],
+    preguntas: [
+      { texto: '¿Qué sistema cerebral está relacionado con el placer?', opciones: ['Sistema límbico', 'Sistema de recompensa', 'Sistema nervioso periférico', 'Sistema endocrino'], correcta: 1 },
+      { texto: '¿Qué es el craving?', opciones: ['Un tipo de tratamiento', 'Deseo intenso de consumir una sustancia', 'Un efecto secundario de las drogas', 'Un síntoma de intoxicación'], correcta: 1 },
+      { texto: 'Menciona dos factores de riesgo para desarrollar una adicción.', opciones: ['Antecedentes familiares y presión de grupo', 'Dieta y ejercicio', 'Clima y alimentación', 'Edad y género'], correcta: 0 },
+      { texto: 'La adicción puede afectar la memoria.', opciones: ['Verdadero', 'Falso'], correcta: 0 },
+    ]
+  },
+
+  // --- NIVEL 3 - El Laboratorio ---
+  {
+    nombre: 'Nivel 3 - El Laboratorio',
+    colorFondo: '#0a1a2e',
+    colorSuelo: '#1a3a4a',
+    plataformas: [
+      { x: 0, y: 460, w: 800, h: 40 }, // plataforma 0 (suelo)
+      { x: 335, y: 375, w: 110, h: 12 }, // plataforma 1 (centro)
+      { x: 170, y: 315, w: 110, h: 12 }, // plataforma 2 (izquierda)
+      { x: 510, y: 315, w: 110, h: 12 }, // plataforma 3 (derecha)
+      { x: 345, y: 245, w: 110, h: 12 }, // plataforma 4 (centro)
+      { x: 170, y: 180, w: 110, h: 12 }, // plataforma 5 (izquierda)
+      { x: 510, y: 180, w: 110, h: 12 }, // plataforma 6 (derecha)
+      { x: 340, y: 115, w: 120, h: 12 }, // plataforma 7 (centro)
+    ],
+    llaves: [
+      { x: 560, y: 150, puertaId: 0 }, // roja → p6
+      { x: 230, y: 150, puertaId: 1 }, // azul → p5
+      { x: 420, y: 85, puertaId: 2 },  // amarilla → p7
+      { x: 370, y: 215, puertaId: 3 }, // verde → p4
+    ],
+    puertas: [
+      { x: 360, y: 331, w: 32, h: 44 }, // roja → p1 (centro baja)
+      { x: 260, y: 271, w: 32, h: 44 }, // azul → p2 (izquierda baja)
+      { x: 560, y: 271, w: 32, h: 44 }, // amarilla → p3 (derecha baja)
+      { x: 410, y: 201, w: 32, h: 44 }, // verde → p4 (centro)
+    ],
+    enemigos: [
+      { x: 320, y: 351 }, // p1 (guarda la puerta roja)
+      { x: 200, y: 291 }, // p2 (guarda la puerta azul)
+      { x: 580, y: 291 }, // p3 (guarda la puerta amarilla)
+      { x: 445, y: 221 }, // p4 (lado de la puerta verde)
+    ],
+    preguntas: [
+      { texto: 'El alcohol es un estimulante del sistema nervioso.', opciones: ['Mito', 'Realidad'], correcta: 0 },
+      { texto: 'Solo las drogas ilegales causan adicción.', opciones: ['Mito', 'Realidad'], correcta: 0 },
+      { texto: '¿Por qué las personas con trastornos de salud mental tienen mayor riesgo de desarrollar una adicción?', opciones: ['Porque son más débiles', 'Porque algunas usan sustancias para aliviar síntomas', 'Porque las drogas actúan diferente en ellas', 'Porque no tienen fuerza de voluntad'], correcta: 1 },
+      { texto: 'Un paciente presenta temblores, sudoración y ansiedad al dejar el alcohol. ¿Qué está experimentando?', opciones: ['Intoxicación alcohólica', 'Síndrome de abstinencia', 'Sobredosis', 'Alucinación'], correcta: 1 },
+    ]
+  },
+
+  // --- NIVEL 4 - La Clínica ---
+  {
+    nombre: 'Nivel 4 - La Clínica',
+    colorFondo: '#0a1a2e',
+    colorSuelo: '#1a3a5e',
+    plataformas: [
+      { x: 0, y: 460, w: 800, h: 40 }, // plataforma 0 (suelo)
+      { x: 550, y: 390, w: 140, h: 20 }, // p1
+      { x: 300, y: 320, w: 160, h: 20 }, // p2
+      { x: 60, y: 250, w: 160, h: 20 },  // p3
+      { x: 500, y: 200, w: 150, h: 20 }, // p4
+      { x: 220, y: 130, w: 160, h: 20 }, // p5
+      { x: 620, y: 90, w: 120, h: 20 },  // p6
+    ],
+    llaves: [
+      { x: 240, y: 100, puertaId: 0 },
+      { x: 660, y: 60, puertaId: 1 },
+      { x: 320, y: 290, puertaId: 2 },
+      { x: 620, y: 170, puertaId: 3 },
+    ],
+    puertas: [
+      { x: 360, y: 276, w: 32, h: 44 },
+      { x: 180, y: 206, w: 32, h: 44 },
+      { x: 620, y: 346, w: 32, h: 44 },
+      { x: 540, y: 156, w: 32, h: 44 },
+      { x: 680, y: 46, w: 32, h: 44 },
+    ],
+    enemigos: [
+      { x: 380, y: 106 },
+      { x: 420, y: 296 },
+      { x: 60, y: 226 },
+      { x: 640, y: 176 },
+      { x: 660, y: 66 },
+    ],
+    preguntas: [
+      { texto: '¿Qué es una adicción?', opciones: ['Un mal hábito fácil de dejar', 'Una enfermedad caracterizada por la dependencia a una sustancia o conducta', 'Una elección personal consciente', 'Un trastorno genético sin tratamiento'], correcta: 1 },
+      { texto: '¿Cuál es el principal neurotransmisor relacionado con el sistema de recompensa?', opciones: ['Serotonina', 'Adrenalina', 'Dopamina', 'GABA'], correcta: 2 },
+      { texto: '¿Qué trastorno mental suele presentarse junto con una adicción?', opciones: ['Esquizofrenia', 'Trastorno de personalidad múltiple', 'Ansiedad o depresión', 'Demencia'], correcta: 2 },
+      { texto: '¿Qué parte del cerebro participa en la toma de decisiones y se ve afectada por las adicciones?', opciones: ['Cerebelo', 'Corteza prefrontal', 'Amígdala', 'Tronco encefálico'], correcta: 1 },
+    ]
+  },
+
+  // --- NIVEL 5 - El Archivo ---
+  {
+    nombre: 'Nivel 5 - El Archivo',
+    colorFondo: '#121a24',
+    colorSuelo: '#243040',
+    plataformas: [
+      { x: 0, y: 460, w: 800, h: 12 },   // suelo
+      { x: 80, y: 390, w: 120, h: 12 },  // izquierda baja
+      { x: 580, y: 250, w: 120, h: 12 }, // derecha media
+      { x: 330, y: 340, w: 140, h: 12 }, // izquierda media
+      { x: 325, y: 180, w: 150, h: 12 }, // derecha alta
+      { x: 80, y: 125, w: 150, h: 12 }, // izquierda alta
+]
+,
+    llaves: [
+      { x: 210, y: 95, puertaId: 0 },
+      { x: 100, y: 360, puertaId: 1 },
+      { x: 420, y: 150, puertaId: 2 },
+      { x: 650, y: 220, puertaId: 3 },
+    ],
+    puertas: [
+      { x: 620, y: 206, w: 32, h: 44 },
+      { x: 460, y: 136, w: 32, h: 44 },
+      { x: 360, y: 296, w: 32, h: 44 },
+      { x: 120, y: 81, w: 32, h: 44 },
+    ],
+    enemigos: [
+      { x: 150, y: 366 },
+      { x: 585, y: 226 },
+      { x: 450, y: 316 },
+      { x: 330, y: 156 },
+      { x: 85, y: 101 },
+      { x: 700, y: 436 },
+    ],
+    preguntas: [
+      { texto: 'Menciona dos sustancias que pueden causar adicción.', opciones: ['Agua y vitaminas', 'Alcohol y cocaína', 'Té y café', 'Azúcar y sal'], correcta: 1 },
+      { texto: '¿Cuál es la droga legal más consumida en el mundo?', opciones: ['Tabaco', 'Cafeína', 'Alcohol', 'Medicamentos recetados'], correcta: 2 },
+      { texto: '¿Cuál es la principal sustancia del tabaco que genera dependencia?', opciones: ['Alquitrán', 'Monóxido de carbono', 'Nicotina', 'Plomo'], correcta: 2 },
+      { texto: '¿Qué intervención de enfermería es fundamental en pacientes con adicciones?', opciones: ['Solo administrar medicamentos', 'Educación, apoyo emocional y prevención de recaídas', 'Realizar cirugías', 'Solo tomar signos vitales'], correcta: 1 },
+    ]
+  },
+
+  // --- NIVEL 6 - Sala de Emergencias (Boss Fight) ---
+  {
+    nombre: 'Nivel 6 - Sala de Emergencias',
+    colorFondo: '#12161a',
+    colorSuelo: '#2c343c',
+    plataformas: [
+      { x: 0, y: 460, w: 800, h: 40 }, // plataforma 0 (suelo)
+      { x: 60, y: 390, w: 140, h: 20 },  // plataforma 1
+      { x: 520, y: 350, w: 140, h: 20 }, // plataforma 2
+      { x: 250, y: 290, w: 160, h: 20 }, // plataforma 3
+      { x: 560, y: 220, w: 120, h: 20 }, // plataforma 4
+      { x: 140, y: 170, w: 150, h: 20 }, // plataforma 5
+      { x: 450, y: 110, w: 160, h: 20 }, // plataforma 6
+    ],
+    llaves: [
+      { x: 80, y: 360, puertaId: 0 },
+      { x: 580, y: 190, puertaId: 1 },
+      { x: 240, y: 140, puertaId: 2 },
+      { x: 580, y: 80, puertaId: 3 },
+    ],
+    puertas: [
+      { x: 300, y: 246, w: 32, h: 44 },
+      { x: 120, y: 346, w: 32, h: 44 },
+      { x: 540, y: 306, w: 32, h: 44 },
+      { x: 170, y: 126, w: 32, h: 44 },
+      { x: 500, y: 66, w: 32, h: 44 },
+    ],
+    enemigos: [
+      { x: 130, y: 366 },
+      { x: 600, y: 326 },
+      { x: 330, y: 266 },
+      { x: 600, y: 196 },
+      { x: 220, y: 146 },
+      { x: 540, y: 86 },
+    ],
+    preguntas: [
+      { texto: '¿Qué profesional forma parte del equipo de atención a personas con adicciones?', opciones: ['Solo el psiquiatra', 'Solo el médico general', 'Enfermero, psicólogo, psiquiatra o trabajador social', 'Solo el enfermero'], correcta: 2 },
+      { texto: '¿Qué droga es un depresor del sistema nervioso central?', opciones: ['Cocaína', 'Metanfetaminas', 'Alcohol', 'Nicotina'], correcta: 2 },
+      { texto: '¿Qué sustancia puede provocar una sobredosis mortal al deprimir la respiración?', opciones: ['Cafeína', 'Alcohol', 'Marihuana', 'Opioides'], correcta: 3 },
+    ]
+  },
+];
+
+// ============================================================
+//  ESTADO DEL JUEGO
+// ============================================================
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const modal = document.getElementById('quizModal');
+const modalBox = document.getElementById('modalBox');
+const modalNivelTag = document.getElementById('modalNivelTag');
+const modalPregunta = document.getElementById('modalPregunta');
+const modalOpciones = document.getElementById('modalOpciones');
+const modalFeedback = document.getElementById('modalFeedback');
+const btnContinuar = document.getElementById('btnContinuar');
+const victoriaModal = document.getElementById('victoriaModal');
+const gameOverModal = document.getElementById('gameOverModal');
+const nivelDisplay = document.getElementById('nivelDisplay');
+const puertasDisplay = document.getElementById('puertasDisplay');
+
+const GRAVEDAD = 0.5;
+const VEL_SALTO = -12.0;
+const VEL_MAX_CAIDA = 13;
+const VEL_MOV = 3.3;
+const ROZAMIENTO = 0.86;
+
+// Enemigos
+const VEL_ENEMIGO = 0.5;
+const ENEMIGO_W = 20;
+const ENEMIGO_H = 24;
+const RANGO_PATRULLA = 40;
+
+// Jefe
+const VEL_JEFE = 2.2;
+const JEFE_W = 46;
+const JEFE_H = 48;
+const RANGO_PATRULLA_JEFE = 340;
+const VEL_CARGA = 7.5;
+const INTERVALO_CARGA = 90;   // frames entre cargas
+const DANO_JEFE = 16;
+
+// Proyectiles del jefe
+const VEL_PROYECTIL = 5;
+const PROYECTIL_W = 12;
+const PROYECTIL_H = 12;
+const INTERVALO_PROYECTIL = 95; // frames entre disparos
+const DISTANCIA_DISPARO = 340;  // alcance de disparo
+
+let nivelActual = 0;
+let juegoPausado = false;
+let puertaInteractuando = null;
+let respondiendo = false;
+let indicesPreguntasUsadas = [];
+let animFrame = 0;
+
+function reiniciarJuego() {
+  nivelActual = 0;
+  gameOverModal.classList.remove('active');
+  victoriaModal.classList.remove('active');
+  cargarNivel(0, true);
+}
+
+// --- Jugador ---
+const jugador = {
+  x: 40, y: 380,
+  w: 22, h: 30,
+  vx: 0, vy: 0,
+  enSuelo: false,
+  direccion: 1,  // 1 derecha, -1 izquierda
+};
+
+// --- Teclas ---
+const teclas = {};
+document.addEventListener('keydown', e => {
+  teclas[e.code] = true;
+  if (e.code === 'Space') e.preventDefault();
+});
+document.addEventListener('keyup', e => {
+  teclas[e.code] = false;
+});
+
+// --- Controles táctiles ---
+function conectarBoton(id, codigoTecla) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+
+  function pulsar(e) {
+    e.preventDefault();
+    teclas[codigoTecla] = true;
+    btn.classList.add('pulsado');
+  }
+  function soltar(e) {
+    e.preventDefault();
+    teclas[codigoTecla] = false;
+    btn.classList.remove('pulsado');
+  }
+
+  btn.addEventListener('touchstart', pulsar, { passive: false });
+  btn.addEventListener('touchend', soltar, { passive: false });
+  btn.addEventListener('touchcancel', soltar, { passive: false });
+  btn.addEventListener('mousedown', pulsar);
+  btn.addEventListener('mouseup', soltar);
+  btn.addEventListener('mouseleave', soltar);
+}
+
+conectarBoton('btnLeft', 'ArrowLeft');
+conectarBoton('btnRight', 'ArrowRight');
+conectarBoton('btnJump', 'Space');
+
+// --- Colores de llaves (la llave y su puerta comparten color) ---
+const COLORES_LLAVES = ['#ff5252', '#4fc3f7', '#ffd54f', '#81c784', '#ba68c8'];
+
+// --- Cargar nivel ---
+function cargarNivel(indice, reiniciarPuertas = true) {
+  const nivel = NIVELES[indice];
+  if (!nivel) {
+    victoriaModal.classList.add('active');
+    juegoPausado = true;
+    return;
+  }
+
+  jugador.x = 40;
+  jugador.y = 380;
+  jugador.vx = 0;
+  jugador.vy = 0;
+  jugador.enSuelo = false;
+
+  if (reiniciarPuertas) {
+    nivel.puertas.forEach(p => { p.activa = true; });
+  }
+
+  // Puertas: asegurar dimensiones por defecto y resetear estado
+  nivel.puertas.forEach(p => {
+    if (!p.w) p.w = 32;
+    if (!p.h) p.h = 44;
+    p.superada = false;
+  });
+
+  // Llaves: se guardan en inventario, se llevan a su puerta (no auto-desbloquean)
+  if (nivel.llaves && nivel.llaves.length) {
+    nivel.llaves.forEach((l, i) => {
+      if (l.puertaId === undefined) l.puertaId = i;
+      l.recogida = false;
+      l.color = COLORES_LLAVES[i % COLORES_LLAVES.length];
+    });
+  }
+
+  // Puertas: las que tienen llave inician bloqueadas; el resto abiertas.
+  // Cada puerta con llave comparte el color de su llave.
+  const esPuertaConLlave = i => nivel.llaves && nivel.llaves.some(l => l.puertaId === i);
+  nivel.puertas.forEach((p, i) => {
+    if (!p.color) p.color = '#888';
+    p.desbloqueada = !esPuertaConLlave(i);
+    if (esPuertaConLlave(i)) {
+      const lla = nivel.llaves.find(l => l.puertaId === i);
+      if (lla) p.color = lla.color;
+    }
+  });
+
+  if (nivel.enemigos) {
+    nivel.enemigos.forEach(e => {
+      if (e.__origX === undefined) e.__origX = e.x;
+      e.eliminado = false;
+
+      // Plataforma sobre la que está posado el enemigo
+      const p = nivel.plataformas.find(pl =>
+        pl.y === e.y + ENEMIGO_H &&
+        e.x >= pl.x && e.x <= pl.x + pl.w);
+
+      if (p) {
+        e.minX = p.x + 4;
+        e.maxX = p.x + p.w - ENEMIGO_W - 4;
+        if (e.x < e.minX) e.x = e.minX;
+        if (e.x > e.maxX) e.x = e.maxX;
+      } else {
+        e.minX = e.__origX - RANGO_PATRULLA;
+        e.maxX = e.__origX + RANGO_PATRULLA;
+      }
+      e.x = e.__origX;
+      e.dir = 1;
+    });
+  }
+
+  if (nivel.jefe) {
+    const j = nivel.jefe;
+    if (j.__origX === undefined) j.__origX = j.x;
+    j.iniX = j.x;
+    j.dir = 1;
+    j.minX = 60;
+    j.maxX = 740;
+    j.derrotado = false;
+    j.vidaActual = j.vida;
+    j.invulnerableHasta = 0;
+    j.estado = 'acecho';
+    j.tidCarga = INTERVALO_CARGA;
+    j.tidProyectil = INTERVALO_PROYECTIL;
+    j.x = j.__origX;
+  }
+
+  nivel.proyectiles = [];
+
+  indicesPreguntasUsadas = [];
+
+  nivelDisplay.textContent = nivel.nombre;
+  actualizarContadorPuertas();
+  juegoPausado = false;
+  respondiendo = false;
+  puertaInteractuando = null;
+}
+
+// --- Actualizar contador de puertas activas + llaves que lleva el jugador ---
+function actualizarContadorPuertas() {
+  const nivel = NIVELES[nivelActual];
+  if (!nivel) return;
+  const disponibles = nivel.puertas.filter(p => p.activa !== false && !p.superada).length;
+  puertasDisplay.textContent = 'Puertas: ' + disponibles;
+
+  const hud = document.querySelector('#llavesDisplay .llaves-hud');
+  if (hud) {
+    hud.innerHTML = '';
+    if (nivel.llaves) {
+      nivel.llaves.forEach(l => {
+        if (l.recogida) {
+          const dot = document.createElement('span');
+          dot.className = 'llave-dot';
+          dot.style.background = l.color;
+          hud.appendChild(dot);
+        }
+      });
+    }
+  }
+}
+
+// --- Obtener el nivel actual ---
+function nivelActualObj() { return NIVELES[nivelActual]; }
+
+// ============================================================
+//  COLISIONES AABB
+// ============================================================
+function aabb(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x &&
+         a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+// --- Colisión plataformas (solo desde arriba) ---
+function resolverPlataformas() {
+  const nivel = nivelActualObj();
+  if (!nivel) return;
+
+  jugador.enSuelo = false;
+
+  for (const p of nivel.plataformas) {
+    if (!aabb(jugador, p)) continue;
+
+    // Determinar desde qué dirección viene el jugador
+    const arribaJugador = jugador.y;
+    const abajoJugador = jugador.y + jugador.h;
+    const arribaPlat = p.y;
+    const abajoPlat = p.y + p.h;
+
+    const centroJugX = jugador.x + jugador.w / 2;
+    const centroPlatX = p.x + p.w / 2;
+
+    // Velocidad vertical previa
+    const vyPrevia = jugador.vy;
+
+    // Si venía cayendo y el centro del jugador está sobre la plataforma
+    if (vyPrevia >= 0 && abajoJugador - arribaPlat <= 16 && centroJugX > p.x && centroJugX < p.x + p.w) {
+      jugador.y = p.y - jugador.h;
+      jugador.vy = 0;
+      jugador.enSuelo = true;
+    }
+    // Colisión lateral/lateral
+    else if (vyPrevia < 0 && abajoPlat - arribaJugador <= 12 && abajoJugador > arribaPlat + 8) {
+      jugador.y = abajoPlat;
+      jugador.vy = 0;
+    }
+    // Colisión lateral (izquierda/derecha)
+    else {
+      if (jugador.x + jugador.w / 2 < centroPlatX) {
+        jugador.x = p.x - jugador.w;
+      } else {
+        jugador.x = p.x + p.w;
+      }
+      jugador.vx = 0;
+    }
+  }
+
+  // Límites del canvas
+  if (jugador.x < 0) { jugador.x = 0; jugador.vx = 0; }
+  if (jugador.x + jugador.w > 800) { jugador.x = 800 - jugador.w; jugador.vx = 0; }
+
+  if (jugador.y > 520) {
+    cargarNivel(nivelActual, true);
+  }
+}
+
+// --- Detectar colisión con puertas ---
+let toastTimer = null;
+let puertaConLlaveTocada = -1;
+const NOMBRES_COLOR = {
+  '#ff5252': 'roja', '#4fc3f7': 'azul', '#ffd54f': 'amarilla',
+  '#81c784': 'verde', '#ba68c8': 'morada', '#888': 'gris'
+};
+function hexToRgba(hex, a) {
+  const h = hex.replace('#', '');
+  const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+  return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+}
+function mostrarAviso(msg) {
+  const t = document.getElementById('toastHint');
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.add('visible');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('visible'), 1800);
+}
+
+function revisarPuertas() {
+  if (respondiendo || juegoPausado) return;
+
+  const nivel = nivelActualObj();
+  if (!nivel) return;
+
+  for (let idx = 0; idx < nivel.puertas.length; idx++) {
+    const puerta = nivel.puertas[idx];
+    if (puerta.activa === false || puerta.superada) continue;
+    if (!aabb(jugador, puerta)) continue;
+
+    // Puerta con llave y aún bloqueada: se abre al llevarle su llave
+    if (!puerta.desbloqueada) {
+      const lla = nivel.llaves && nivel.llaves.find(l => l.puertaId === idx && l.recogida);
+      if (lla) {
+        puerta.desbloqueada = true;
+        actualizarContadorPuertas();
+      } else {
+        if (puertaConLlaveTocada !== idx) {
+          puertaConLlaveTocada = idx;
+          mostrarAviso('🔒 Necesitas buscar la llave ' + (NOMBRES_COLOR[puerta.color] || 'de este color'));
+        }
+        continue;
+      }
+    }
+
+    abrirModal(puerta);
+    return;
+  }
+}
+
+// ============================================================
+//  MODAL DE PREGUNTAS
+// ============================================================
+function abrirModal(puerta) {
+  juegoPausado = true;
+  respondiendo = true;
+  puertaInteractuando = puerta;
+
+  const nivel = nivelActualObj();
+  modalNivelTag.textContent = nivel.nombre;
+
+  const disponibles = nivel.preguntas
+    .map((_, i) => i)
+    .filter(i => !indicesPreguntasUsadas.includes(i));
+
+  let idxPregunta;
+  if (disponibles.length === 0) {
+    indicesPreguntasUsadas = [];
+    idxPregunta = Math.floor(Math.random() * nivel.preguntas.length);
+  } else {
+    idxPregunta = disponibles[Math.floor(Math.random() * disponibles.length)];
+  }
+  indicesPreguntasUsadas.push(idxPregunta);
+
+  const pregunta = nivel.preguntas[idxPregunta];
+  puerta.preguntaActual = pregunta;
+
+  modalPregunta.textContent = pregunta.texto;
+  modalFeedback.textContent = '';
+  modalFeedback.className = 'feedback';
+  btnContinuar.className = 'btn-continuar';
+  modalBox.className = 'modal-box';
+
+  modalOpciones.innerHTML = '';
+  pregunta.opciones.forEach((texto, idx) => {
+    const btn = document.createElement('button');
+    btn.textContent = texto;
+    btn.addEventListener('click', () => responderPregunta(pregunta, idx, btn));
+    modalOpciones.appendChild(btn);
+  });
+
+  modal.classList.add('active');
+}
+
+function responderPregunta(pregunta, idx, btn) {
+  document.querySelectorAll('#modalOpciones button').forEach(b => b.disabled = true);
+
+  const esCorrecta = (idx === pregunta.correcta);
+  const puerta = puertaInteractuando;
+
+  function eliminarEnemigoCercano(puerta) {
+    const nivel = nivelActualObj();
+    if (!nivel.enemigos) return;
+    const cx = puerta.x + puerta.w / 2, cy = puerta.y + puerta.h / 2;
+    let mejor = null, mejorD = Infinity;
+    for (const e of nivel.enemigos) {
+      if (e.eliminado) continue;
+      const d = Math.hypot((e.x + ENEMIGO_W / 2) - cx, (e.y + ENEMIGO_H / 2) - cy);
+      if (d < mejorD) { mejorD = d; mejor = e; }
+    }
+    if (mejor) mejor.eliminado = true;
+  }
+
+  if (esCorrecta) {
+    puerta.superada = true;
+    eliminarEnemigoCercano(puerta);
+    modalFeedback.textContent = '✅ ¡Correcto! Puerta superada.';
+    modalFeedback.className = 'feedback ok';
+    btn.classList.add('correcto');
+
+    const nivelNivel = nivelActualObj();
+    const restantes = nivelNivel.puertas.filter(p => p.activa !== false && p.superada !== true).length;
+    actualizarContadorPuertas();
+
+    if (restantes === 0) {
+      btnContinuar.textContent = '▶ Nivel completado';
+    } else {
+      btnContinuar.textContent = '▶ Continuar (' + restantes + ' puerta(s) restante(s))';
+    }
+    btnContinuar.className = 'btn-continuar visible';
+    btnContinuar.onclick = () => {
+      modal.classList.remove('active');
+      respondiendo = false;
+      puertaInteractuando = null;
+      if (restantes === 0) {
+        nivelActual++;
+        cargarNivel(nivelActual, true);
+      } else {
+        juegoPausado = false;
+      }
+    };
+  } else {
+    modalFeedback.textContent = '❌ Respuesta incorrecta. La puerta se ha cerrado.';
+    modalFeedback.className = 'feedback fail';
+    btn.classList.add('incorrecto');
+
+    const btns = document.querySelectorAll('#modalOpciones button');
+    btns[pregunta.correcta].classList.add('correcto');
+
+    puerta.activa = false;
+    actualizarContadorPuertas();
+
+    if (nivelActual === 0) {
+      btnContinuar.textContent = '✖ Cerrar';
+      btnContinuar.className = 'btn-continuar visible';
+      btnContinuar.onclick = () => {
+        modal.classList.remove('active');
+        juegoPausado = false;
+        respondiendo = false;
+        puertaInteractuando = null;
+
+        const nivel = nivelActualObj();
+        const activas = nivel.puertas.filter(p => p.activa !== false).length;
+        if (activas === 0) {
+          gameOverModal.classList.add('active');
+          juegoPausado = true;
+        }
+      };
+    } else if (nivelActualObj().jefe) {
+      // Nivel de jefe: al fallar, el jefe revive y hay que derrotarlo de nuevo.
+      btnContinuar.textContent = '⚔ Derrota al jefe de nuevo';
+      btnContinuar.className = 'btn-continuar visible';
+      btnContinuar.onclick = () => {
+        modal.classList.remove('active');
+        cargarNivel(nivelActual, true);
+      };
+    } else {
+      btnContinuar.textContent = '⬅ Volver al nivel anterior';
+      btnContinuar.className = 'btn-continuar visible';
+      btnContinuar.onclick = () => {
+        modal.classList.remove('active');
+        nivelActual--;
+        cargarNivel(nivelActual, false);
+
+        const nivel = nivelActualObj();
+        const activas = nivel.puertas.filter(p => p.activa !== false).length;
+        if (activas === 0) {
+          gameOverModal.classList.add('active');
+          juegoPausado = true;
+        }
+      };
+    }
+  }
+}
+
+// ============================================================
+//  ACTUALIZACIÓN Y RENDER
+// ============================================================
+function actualizar() {
+  if (juegoPausado) return;
+
+  const nivel = nivelActualObj();
+  if (!nivel) return;
+
+  // Input
+  if (teclas['ArrowLeft']) {
+    jugador.vx = -VEL_MOV;
+    jugador.direccion = -1;
+  } else if (teclas['ArrowRight']) {
+    jugador.vx = VEL_MOV;
+    jugador.direccion = 1;
+  } else {
+    jugador.vx *= ROZAMIENTO;
+    if (Math.abs(jugador.vx) < 0.1) jugador.vx = 0;
+  }
+
+  if ((teclas['Space'] || teclas['ArrowUp']) && jugador.enSuelo) {
+    jugador.vy = VEL_SALTO;
+    jugador.enSuelo = false;
+  }
+
+  // Gravedad
+  jugador.vy += GRAVEDAD;
+  if (jugador.vy > VEL_MAX_CAIDA) jugador.vy = VEL_MAX_CAIDA;
+
+  // Mover
+  jugador.x += jugador.vx;
+  jugador.y += jugador.vy;
+
+  // Colisiones
+  resolverPlataformas();
+
+  // Enemigos: patrulla y colisión con el jugador
+  if (nivel.enemigos) {
+    for (const e of nivel.enemigos) {
+      if (e.eliminado) continue;
+      e.x += e.dir * VEL_ENEMIGO;
+      if (e.x <= e.minX) { e.x = e.minX; e.dir = 1; }
+      else if (e.x >= e.maxX) { e.x = e.maxX; e.dir = -1; }
+
+      if (aabb(jugador, { x: e.x, y: e.y, w: ENEMIGO_W, h: ENEMIGO_H })) {
+        cargarNivel(nivelActual, true);
+        return;
+      }
+    }
+  }
+
+  // Jefe: acecho/carga, disparo de proyectiles, daño por salto y puerta final
+  if (nivel.jefe && !nivel.jefe.derrotado) {
+    const j = nivel.jefe;
+    const sx = jugador.x + jugador.w / 2;
+    const ex = j.x + JEFE_W / 2;
+
+    // Orientación hacia el jugador
+    j.dir = sx >= ex ? 1 : -1;
+
+    // Timers
+    if (j.tidCarga > 0) j.tidCarga--;
+    if (j.tidProyectil > 0) j.tidProyectil--;
+
+    // Comportamiento inteligente
+    if (j.estado === 'acecho') {
+      // Se acerca al jugador lentamente (acecho)
+      const dx = sx - ex;
+      if (Math.abs(dx) > 12) {
+        j.x += Math.sign(dx) * VEL_JEFE;
+      }
+      // Inicia carga si está cerca y el cooldown lo permite
+      if (Math.abs(dx) < 150 && j.tidCarga === 0) {
+        j.estado = 'carga';
+        j.tidCarga = INTERVALO_CARGA;
+      }
+    } else if (j.estado === 'carga') {
+      // Carga rápida hacia el jugador durante 30 frames
+      const dx = sx - ex;
+      j.x += Math.sign(dx) * VEL_CARGA;
+      j.tidCarga--;
+      if (j.tidCarga <= INTERVALO_CARGA - 30) {
+        j.estado = 'acecho';
+        j.tidCarga = INTERVALO_CARGA;
+      }
+    }
+
+    // Límites de la arena
+    if (j.x <= j.minX) { j.x = j.minX; }
+    if (j.x >= j.maxX) { j.x = j.maxX; }
+
+    // Disparo de proyectil
+    if (j.tidProyectil === 0 && Math.abs(sx - ex) < DISTANCIA_DISPARO) {
+      const centroX = ex;
+      const centroY = j.y + JEFE_H / 2;
+      const dx = sx - centroX;
+      const dy = (jugador.y + jugador.h / 2) - centroY;
+      const len = Math.hypot(dx, dy) || 1;
+      nivel.proyectiles.push({
+        x: centroX,
+        y: centroY,
+        vx: (dx / len) * VEL_PROYECTIL,
+        vy: (dy / len) * VEL_PROYECTIL,
+      });
+      j.tidProyectil = INTERVALO_PROYECTIL;
+    }
+
+    // Colisión cuerpo del jefe
+    const cajaJefe = { x: j.x, y: j.y, w: JEFE_W, h: JEFE_H };
+    if (aabb(jugador, cajaJefe)) {
+      const abajoJugador = jugador.y + jugador.h;
+      const cayendo = jugador.vy > 0;
+      const sobreCabeza = abajoJugador - j.y <= 18;
+      const invulnerable = Date.now() < j.invulnerableHasta;
+
+      if (cayendo && sobreCabeza && !invulnerable) {
+        j.vidaActual -= DANO_JEFE;
+        j.invulnerableHasta = Date.now() + 350;
+        jugador.vy = VEL_SALTO * 0.6;
+        jugador.enSuelo = false;
+
+        if (j.vidaActual <= 0) {
+          j.vidaActual = 0;
+          j.derrotado = true;
+          nivel.proyectiles = [];
+          const p = nivel.puertas[j.puertaId];
+          if (p) p.desbloqueada = true;
+          actualizarContadorPuertas();
+        }
+      } else if (!sobreCabeza) {
+        cargarNivel(nivelActual, true);
+        return;
+      }
+    }
+  }
+
+  // Mover proyectiles del jefe y detectar colisión
+  if (nivel.proyectiles && nivel.jefe && !nivel.jefe.derrotado) {
+    for (let i = nivel.proyectiles.length - 1; i >= 0; i--) {
+      const pr = nivel.proyectiles[i];
+      pr.x += pr.vx;
+      pr.y += pr.vy;
+
+      let borrar = false;
+
+      // Colisión con plataformas
+      for (const p of nivel.plataformas) {
+        if (aabb({ x: pr.x, y: pr.y, w: PROYECTIL_W, h: PROYECTIL_H }, { x: p.x, y: p.y, w: p.w, h: p.h })) {
+          borrar = true;
+          break;
+        }
+      }
+
+      // Fuera del canvas
+      if (pr.x < -20 || pr.x > 820 || pr.y < -20 || pr.y > 520) borrar = true;
+
+      // Colisión con el jugador -> muerte
+      if (!borrar && aabb(jugador, { x: pr.x, y: pr.y, w: PROYECTIL_W, h: PROYECTIL_H })) {
+        cargarNivel(nivelActual, true);
+        return;
+      }
+
+      if (borrar) nivel.proyectiles.splice(i, 1);
+    }
+  }
+
+  // Recoger llaves (se guardan en el inventario; la puerta se abre al llevarla)
+  if (nivel.llaves) {
+    for (const llave of nivel.llaves) {
+      if (llave.recogida) continue;
+      if (aabb(jugador, { x: llave.x, y: llave.y, w: 18, h: 14 })) {
+        llave.recogida = true;
+        actualizarContadorPuertas();
+        mostrarAviso('🔑 ¡Llave ' + (NOMBRES_COLOR[llave.color] || '') + '! Llévala a su puerta');
+      }
+    }
+  }
+
+  // Revisar puertas
+  revisarPuertas();
+
+  animFrame++;
+}
+
+function renderizar() {
+  const nivel = nivelActualObj();
+  if (!nivel) return;
+
+  // Fondo
+  ctx.fillStyle = nivel.colorFondo;
+  ctx.fillRect(0, 0, 800, 500);
+
+  // ---- PLATAFORMAS ----
+  for (const p of nivel.plataformas) {
+    // Cuerpo principal (ladrillo)
+    ctx.fillStyle = nivel.colorSuelo;
+    ctx.fillRect(p.x, p.y, p.w, p.h);
+
+    // Borde superior brillante
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fillRect(p.x, p.y, p.w, 3);
+
+    // Líneas de ladrillo
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 1;
+    for (let lx = p.x + 20; lx < p.x + p.w - 10; lx += 25) {
+      ctx.beginPath();
+      ctx.moveTo(lx, p.y);
+      ctx.lineTo(lx, p.y + p.h);
+      ctx.stroke();
+    }
+    for (let ly = p.y + 8; ly < p.y + p.h - 4; ly += 8) {
+      ctx.beginPath();
+      ctx.moveTo(p.x, ly);
+      ctx.lineTo(p.x + p.w, ly);
+      ctx.stroke();
+    }
+  }
+
+  // ---- DECORACIÓN POR NIVEL ----
+  if (nivelActual === 1) {
+    // Biblioteca: candelabros colgantes con llama parpadeante
+    const tCand = Date.now() / 250;
+    for (const p of nivel.plataformas) {
+      if (p.h !== 20) continue;
+      for (let cx = p.x + 30; cx < p.x + p.w - 20; cx += 90) {
+        const yVar = p.y - 44;
+
+        // Varilla vertical
+        ctx.strokeStyle = '#8a6a3a';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, yVar - 8);
+        ctx.lineTo(cx, yVar + 6);
+        ctx.stroke();
+
+        // Brazos laterales
+        ctx.beginPath();
+        ctx.moveTo(cx - 9, yVar - 2);
+        ctx.lineTo(cx + 9, yVar - 2);
+        ctx.stroke();
+
+        // Velas (base)
+        ctx.fillStyle = '#e8dcc0';
+        ctx.fillRect(cx - 9 - 2, yVar - 1, 4, 5);
+        ctx.fillRect(cx + 9 - 2, yVar - 1, 4, 5);
+
+        // Llamas parpadeantes
+        for (const off of [-9, 9]) {
+          const fx = cx + off, fy = yVar - 4;
+          const alto = 4 + Math.sin(tCand + fx) * 1.5;
+
+          const grad = ctx.createRadialGradient(fx, fy, 1, fx, fy, 10);
+          grad.addColorStop(0, 'rgba(255,220,120,0.5)');
+          grad.addColorStop(1, 'rgba(255,180,60,0)');
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(fx, fy, 10, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#ffcf4a';
+          ctx.beginPath();
+          ctx.ellipse(fx, fy - alto / 2, 2, alto, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#fff2c0';
+          ctx.beginPath();
+          ctx.ellipse(fx, fy - alto / 2, 1, alto * 0.5, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    // Estanterías de libros en el fondo
+    const librosColores = ['#c0392b','#d35400','#f39c12','#27ae60','#2980b9','#8e44ad','#e74c3c','#16a085'];
+    for (const est of [{x:30,y:120,w:70,h:70},{x:700,y:120,w:70,h:70},{x:30,y:280,w:70,h:70},{x:700,y:280,w:70,h:70}]) {
+      ctx.fillStyle = 'rgba(70,45,25,0.7)';
+      ctx.fillRect(est.x, est.y, est.w, est.h);
+      ctx.fillStyle = 'rgba(120,80,45,0.8)';
+      ctx.fillRect(est.x, est.y, est.w, 5);
+      ctx.fillRect(est.x, est.y + est.h - 5, est.w, 5);
+      let bx = est.x + 4;
+      for (let i = 0; i < 5; i++) {
+        const bw = 10 + ((est.x + i * 13) % 7);
+        ctx.fillStyle = librosColores[(est.x + est.y + i) % librosColores.length];
+        ctx.fillRect(bx, est.y + 7, bw, est.h - 14);
+        bx += bw + 2;
+      }
+    }
+
+    // Lámparas de pupitre sobre plataformas
+    const tLam = Date.now() / 1000;
+    for (const p of nivel.plataformas) {
+      if (p.h !== 20) continue;
+      const lx = p.x + 18, ly = p.y - 14;
+      ctx.fillStyle = '#5a4a2a';
+      ctx.fillRect(lx - 8, ly + 4, 16, 3);
+      ctx.strokeStyle = '#4a3a1a';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(lx, ly + 4);
+      ctx.lineTo(lx + 12, ly - 12);
+      ctx.stroke();
+      ctx.fillStyle = '#ffd27a';
+      ctx.beginPath();
+      ctx.arc(lx + 13, ly - 13, 6, 0, Math.PI * 2);
+      ctx.fill();
+      const luz = 0.10 + Math.sin(tLam * 3 + lx) * 0.05;
+      ctx.fillStyle = 'rgba(255,210,122,' + luz.toFixed(2) + ')';
+      ctx.beginPath();
+      ctx.ellipse(lx + 18, ly - 2, 30, 14, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  if (nivelActual === 2) {
+    // Laboratorio: matraces Erlenmeyer con burbujas ascendentes
+    const coloresLiquido = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6'];
+    const tLab = Date.now() / 1000;
+    for (const p of nivel.plataformas) {
+      if (p.h !== 12) continue;
+      const mx = p.x + p.w / 2;
+      const my = p.y - 6;
+      const idxLiq = (p.x + p.y) % coloresLiquido.length;
+      const liq = 0.35 + ((p.x * 7) % 5) * 0.08;
+
+      // Sombra
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.beginPath();
+      ctx.ellipse(mx, p.y + 4, 14, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Cuerpo triangular (Erlenmeyer)
+      const th = 26, tw = 26;
+      ctx.fillStyle = 'rgba(200,230,255,0.35)';
+      ctx.strokeStyle = 'rgba(200,230,255,0.7)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(mx - 4, my - th + 10);
+      ctx.lineTo(mx + 4, my - th + 10);
+      ctx.lineTo(mx + tw / 2, my);
+      ctx.lineTo(mx, my + 4);
+      ctx.lineTo(mx - tw / 2, my);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Líquido (recortado dentro del matraz)
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(mx - 4, my - th + 10);
+      ctx.lineTo(mx + 4, my - th + 10);
+      ctx.lineTo(mx + tw / 2, my);
+      ctx.lineTo(mx, my + 4);
+      ctx.lineTo(mx - tw / 2, my);
+      ctx.closePath();
+      ctx.clip();
+      ctx.fillStyle = coloresLiquido[idxLiq];
+      ctx.fillRect(mx - tw / 2, my - th * liq, tw, th * liq + 4);
+      ctx.restore();
+
+      // Burbujas ascendentes
+      for (let b = 0; b < 3; b++) {
+        const ciclo = (tLab * 30 + b * 90 + p.x) % 240;
+        const by = my - th * liq + 24 - (ciclo / 240) * 40;
+        const bx = mx - 6 + (b * 13 % 12);
+        ctx.fillStyle = 'rgba(255,255,255,' + (0.5 + Math.sin(tLab * 3 + b) * 0.2) + ')';
+        ctx.beginPath();
+        ctx.arc(bx, by, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Tubos de ensayo sobre plataformas
+    const tubosColores = ['#e74c3c','#3498db','#2ecc71'];
+    for (const p of nivel.plataformas) {
+      if (p.h !== 12) continue;
+      const tx = p.x + p.w - 18;
+      for (let i = 0; i < 3; i++) {
+        const bx = tx + i * 7;
+        ctx.fillStyle = 'rgba(200,230,255,0.4)';
+        ctx.fillRect(bx, p.y - 18, 5, 18);
+        ctx.fillStyle = tubosColores[(i + p.x) % tubosColores.length];
+        ctx.fillRect(bx, p.y - 12, 5, 12);
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(bx, p.y + 2, 5, 2);
+      }
+    }
+
+    // Mechero Bunsen con llama parpadeante (en el suelo)
+    const bX = 60, bY = 460;
+    ctx.fillStyle = '#8a2a2a';
+    ctx.fillRect(bX - 12, bY - 6, 24, 6);
+    ctx.fillStyle = '#a05050';
+    ctx.fillRect(bX - 4, bY - 20, 8, 14);
+    const tB = Date.now() / 120;
+    const ll = 8 + Math.sin(tB * 2) * 2;
+    ctx.fillStyle = 'rgba(255,120,40,0.5)';
+    ctx.beginPath();
+    ctx.ellipse(bX, bY - 24, 4, ll, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffb347';
+    ctx.beginPath();
+    ctx.ellipse(bX, bY - 20, 2.5, ll * 0.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  if (nivelActual === 0) {
+    // Vestíbulo: columnas de piedra y alfombra decorada
+    for (const side of [0, 1]) {
+      const cx = side === 0 ? 18 : 782;
+      ctx.fillStyle = '#5a4a6a';
+      ctx.fillRect(cx - 14, 110, 28, 350);
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect(cx - 14, 110, 8, 350);
+      ctx.fillStyle = '#3a3050';
+      ctx.fillRect(cx - 20, 100, 40, 18);
+      ctx.fillRect(cx - 20, 440, 40, 22);
+    }
+    // Alfombra con patrón de rombos
+    ctx.fillStyle = 'rgba(180,60,90,0.3)';
+    ctx.fillRect(150, 476, 500, 24);
+    ctx.fillStyle = 'rgba(230,180,60,0.35)';
+    ctx.fillRect(150, 476, 500, 3);
+    ctx.fillRect(150, 497, 500, 3);
+    ctx.strokeStyle = 'rgba(230,180,60,0.3)';
+    ctx.lineWidth = 2;
+    for (let a = 170; a < 640; a += 30) {
+      ctx.beginPath();
+      ctx.moveTo(a, 480);
+      ctx.lineTo(a + 15, 488);
+      ctx.lineTo(a, 496);
+      ctx.lineTo(a - 15, 488);
+      ctx.closePath();
+      ctx.stroke();
+    }
+  }
+
+  if (nivelActual === 3) {
+    // Clínica: cruces médicas en el fondo
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    for (const c of [{x:120,y:150},{x:395,y:120},{x:680,y:160},{x:240,y:320},{x:560,y:330}]) {
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      ctx.fillRect(-7, -20, 14, 40);
+      ctx.fillRect(-20, -7, 40, 14);
+      ctx.restore();
+    }
+    // Línea ECG animada recorriendo el fondo (sutil)
+    const tEcg = Date.now() / 500;
+    ctx.strokeStyle = 'rgba(46,204,113,0.35)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let s = 0; s <= 800; s += 4) {
+      let onda = Math.sin(s * 0.12 + tEcg * 2) * 2.2;
+      const fase = (s + tEcg * 90) % 240;
+      if (fase < 15) onda = -3;
+      else if (fase < 20) onda = 5;
+      else if (fase < 24) onda = -2;
+      const py = 60 + onda * 2;
+      if (s === 0) ctx.moveTo(s, py); else ctx.lineTo(s, py);
+    }
+    ctx.stroke();
+
+    // Camillas pequeñas en el suelo (no sobre plataformas elevadas)
+    const camillas = [180, 620];
+    for (const cx of camillas) {
+      const cy = 460;
+      ctx.fillStyle = 'rgba(220,240,255,0.28)';
+      ctx.fillRect(cx - 22, cy - 6, 44, 5);
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fillRect(cx - 22, cy - 6, 44, 2);
+      ctx.fillStyle = 'rgba(150,180,210,0.4)';
+      ctx.fillRect(cx - 19, cy - 1, 5, 4);
+      ctx.fillRect(cx + 14, cy - 1, 5, 4);
+      ctx.fillStyle = 'rgba(40,50,60,0.6)';
+      ctx.beginPath();
+      ctx.arc(cx - 16, cy + 6, 2.2, 0, Math.PI * 2);
+      ctx.arc(cx + 16, cy + 6, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Poste de suero pequeño en el borde de algunas plataformas (lejos del centro)
+    const sueros = [{ x: 90, y: 250 }, { x: 660, y: 390 }, { x: 650, y: 90 }];
+    for (const su of sueros) {
+      const sx = su.x, sy = su.y;
+      ctx.strokeStyle = 'rgba(220,240,255,0.5)';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy - 24); ctx.lineTo(sx, sy);
+      ctx.moveTo(sx - 4, sy - 24); ctx.lineTo(sx + 4, sy - 24);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.fillRect(sx - 4, sy - 28, 8, 4);
+      const gotaY = sy - 22 + ((tEcg * 30) % 100) * 0.18;
+      ctx.fillStyle = 'rgba(150,220,255,0.85)';
+      ctx.beginPath();
+      ctx.ellipse(sx, gotaY, 1.4, 2.1, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  if (nivelActual === 4) {
+    // Archivo: oficina moderna — estanterías blancas/azul claro con archivadores pastel
+    const colores = ['#a8c6e8','#f2b6b6','#a9e0c0','#f7d794','#c3b1e0','#f0a6c0','#9bd7d5','#e8e2c9'];
+    const estX = [40, 200, 360, 520, 680];
+    for (let i = 0; i < estX.length; i++) {
+      const ex = estX[i];
+      // Cuerpo de la estantería blanca
+      ctx.fillStyle = 'rgba(250,252,255,0.55)';
+      ctx.fillRect(ex, 416, 88, 44);
+      ctx.strokeStyle = 'rgba(90,120,150,0.6)';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(ex, 416, 88, 44);
+      // Baldas
+      ctx.fillStyle = 'rgba(180,200,220,0.6)';
+      ctx.fillRect(ex, 416, 88, 3);
+      ctx.fillRect(ex, 435, 88, 3);
+      ctx.fillRect(ex, 457, 88, 3);
+      // Carpeta plana (archivador) en cada balda
+      for (let fila = 0; fila < 2; fila++) {
+        const fy = fila === 0 ? 420 : 439;
+        for (let c = 0; c < 3; c++) {
+          const cw = 22;
+          const cX = ex + 6 + c * 26;
+          ctx.fillStyle = colores[(i + c + fila * 3) % colores.length];
+          ctx.fillRect(cX, fy, cw, 15);
+          // Etiqueta blanca
+          ctx.fillStyle = 'rgba(255,255,255,0.85)';
+          ctx.fillRect(cX + 3, fy + 4, 12, 4);
+          ctx.fillStyle = 'rgba(120,140,160,0.5)';
+          ctx.fillRect(cX + 3, fy + 6, 8, 1.5);
+          // Sombra de separación
+          ctx.fillStyle = 'rgba(60,80,100,0.2)';
+          ctx.fillRect(cX + cw - 2, fy, 2, 15);
+        }
+      }
+    }
+    // Plantas de escritorio entre las estanterías
+    for (const px of [105, 265, 425, 585, 745]) {
+      ctx.fillStyle = 'rgba(70,110,160,0.5)';
+      ctx.fillRect(px - 8, 452, 16, 8);
+      ctx.fillStyle = '#4a8a5a';
+      ctx.beginPath();
+      ctx.arc(px, 448, 7, Math.PI, 0);
+      ctx.fill();
+      ctx.strokeStyle = '#3a7a4a';
+      ctx.lineWidth = 1.5;
+      for (let hoja = -2; hoja <= 2; hoja++) {
+        ctx.beginPath();
+        ctx.moveTo(px, 450);
+        ctx.quadraticCurveTo(px + hoja * 6, 444, px + hoja * 9, 438);
+        ctx.stroke();
+      }
+    }
+    // Lámparas de escritorio sobre plataformas altas
+    for (const p of nivel.plataformas) {
+      if (p.h !== 20 || p.y < 300) continue;
+      const lx = p.x + 14, ly = p.y - 14;
+      ctx.fillStyle = '#c8d4e0';
+      ctx.fillRect(lx - 8, ly + 4, 16, 3);
+      ctx.strokeStyle = '#aab8c6';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(lx, ly + 4);
+      ctx.lineTo(lx + 12, ly - 12);
+      ctx.stroke();
+      ctx.fillStyle = '#e8eef4';
+      ctx.beginPath();
+      ctx.arc(lx + 13, ly - 13, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,235,180,0.15)';
+      ctx.beginPath();
+      ctx.ellipse(lx + 18, ly - 2, 30, 14, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  if (nivelActual === 5) {
+    // Cuarentena: franjas de peligro, bioriesgo, monitores de alarma y sirena
+    // Franjas amarillo/negro en bordes de plataformas
+    for (const p of nivel.plataformas) {
+      if (p.h !== 20) continue;
+      for (let s = p.x; s < p.x + p.w; s += 12) {
+        ctx.fillStyle = (Math.floor(s / 12) % 2 === 0) ? 'rgba(255,200,40,0.55)' : 'rgba(30,30,30,0.6)';
+        ctx.fillRect(s, p.y - 3, 12, 4);
+      }
+    }
+    // Símbolo de bioriesgo en el fondo
+    ctx.strokeStyle = 'rgba(220,220,220,0.14)';
+    ctx.lineWidth = 2;
+    ctx.save();
+    ctx.translate(730, 70);
+    ctx.beginPath();
+    ctx.arc(0, 0, 26, 0, Math.PI * 2);
+    ctx.stroke();
+    for (let i = 0; i < 3; i++) {
+      const a = i * (Math.PI * 2 / 3) - Math.PI / 2;
+      ctx.beginPath();
+      ctx.arc(Math.cos(a) * 12, Math.sin(a) * 12, 11, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.arc(0, 0, 6, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+    // Monitores de pared (ECG gris/verde)
+    const tEm = Date.now() / 500;
+    for (const wm of [{x:40,y:140},{x:120,y:300},{x:640,y:180}]) {
+      ctx.fillStyle = 'rgba(20,26,28,0.8)';
+      ctx.fillRect(wm.x, wm.y, 34, 22);
+      ctx.strokeStyle = '#7fd185';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let s = 0; s <= 34; s++) {
+        const px = wm.x + s;
+        const py = wm.y + 16 + Math.sin(s * 0.5 + tEm * 2) * 4 + (s % 6 === 3 ? -5 : 0);
+        if (s === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(231,76,60,0.9)';
+      ctx.fillRect(wm.x + 3, wm.y + 2, 2, 2);
+    }
+    // Sirena de alarma parpadeante sobre la puerta final
+    const tSi = Date.now() / 250;
+    const colorSirena = Math.floor(tSi) % 2 === 0 ? '#ff4040' : '#c11b2f';
+    const sy = 416;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(692, sy - 20, 20, 10);
+    ctx.fillStyle = colorSirena;
+    ctx.beginPath();
+    ctx.arc(702, sy - 15, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,64,64,0.32)';
+    ctx.beginPath();
+    ctx.ellipse(702, sy - 15, 14, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ---- LLAVES ----
+  if (nivel.llaves) {
+    const t = Date.now() / 500;
+    for (const llave of nivel.llaves) {
+      if (llave.recogida) continue;
+      const lx = llave.x, ly = llave.y + Math.sin(t + llave.puertaId) * 3;
+      const cx = lx + 9, cy = ly + 7;
+
+      // Aura pulsante (color de la llave)
+      const aura = 13 + Math.sin(t * 1.3) * 2;
+      const rA = llave.color, hexA = rA;
+      const gradAura = ctx.createRadialGradient(cx, cy, 2, cx, cy, aura);
+      gradAura.addColorStop(0, hexToRgba(hexA, 0.5));
+      gradAura.addColorStop(1, hexToRgba(hexA, 0));
+      ctx.fillStyle = gradAura;
+      ctx.beginPath();
+      ctx.arc(cx, cy, aura, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Sombra en el suelo
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath();
+      ctx.ellipse(cx, ly + 16, 7, 2.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Gradiente del cuerpo (color de la llave)
+      const gradOro = ctx.createLinearGradient(0, cy - 10, 0, cy + 11);
+      gradOro.addColorStop(0, llave.color || '#ffe066');
+      gradOro.addColorStop(1, hexToRgba(llave.color || '#ffe066', 0.75));
+
+      // Argolla (anillo)
+      ctx.strokeStyle = gradOro;
+      ctx.lineWidth = 3.2;
+      ctx.beginPath();
+      ctx.arc(cx, cy - 5, 4.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(cx - 1.5, cy - 6.5, 3.2, Math.PI * 1.1, Math.PI * 1.7);
+      ctx.stroke();
+
+      // Vástago
+      ctx.fillStyle = gradOro;
+      ctx.fillRect(cx - 2.5, cy - 1, 5, 10);
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.fillRect(cx - 2.5, cy - 1, 1.5, 10);
+
+      // Dientes de la punta
+      ctx.fillStyle = gradOro;
+      ctx.fillRect(cx - 2.5, cy + 8, 3.5, 2.4);
+      ctx.fillRect(cx - 2.5, cy + 11.5, 4.5, 2.4);
+
+      // Destello giratorio
+      const glint = 0.5 + Math.sin(t * 2.4 + llave.puertaId) * 0.5;
+      if (glint > 0.35) {
+        const gx = cx + 7, gy = cy - 7;
+        ctx.strokeStyle = 'rgba(255,255,255,' + glint + ')';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(gx - 3, gy); ctx.lineTo(gx + 3, gy);
+        ctx.moveTo(gx, gy - 3); ctx.lineTo(gx, gy + 3);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // ---- PUERTAS ----
+  const conLlaves = nivel.llaves && nivel.llaves.length > 0;
+  for (const puerta of nivel.puertas) {
+    if (puerta.activa === false) continue;
+
+    const superada = puerta.superada === true;
+    const bloqueada = conLlaves && !puerta.desbloqueada && !superada;
+    const px = puerta.x, py = puerta.y;
+
+    // Brillo si el jugador está cerca (efecto interactivo)
+    const dist = Math.hypot((jugador.x + jugador.w/2) - (px + puerta.w/2), (jugador.y + jugador.h/2) - (py + puerta.h/2));
+    const cerca = dist < 70 && !bloqueada;
+
+    // Sombra
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(px + 2, py + 4, puerta.w, puerta.h);
+
+    // Marco de la puerta (color café oscuro)
+    ctx.fillStyle = bloqueada ? '#3a2512' : '#5c3a1e';
+    ctx.fillRect(px, py, puerta.w, puerta.h);
+
+    // Arco (parte superior redondeada)
+    ctx.fillStyle = bloqueada ? '#4a3018' : '#7a4e2a';
+    ctx.beginPath();
+    ctx.arc(px + puerta.w/2, py + 8, puerta.w/2 + 2, Math.PI, 0);
+    ctx.fill();
+
+    // Panel interior
+    ctx.fillStyle = bloqueada ? '#5a4020' : (cerca ? '#d4a050' : '#a07030');
+    ctx.fillRect(px + 4, py + 10, puerta.w - 8, puerta.h - 14);
+
+    // Tirador (círculo)
+    ctx.fillStyle = bloqueada ? '#7a5a30' : '#d4a050';
+    ctx.beginPath();
+    ctx.arc(px + puerta.w - 10, py + puerta.h / 2, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Líneas de madera
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(px + puerta.w/2, py + 12);
+    ctx.lineTo(px + puerta.w/2, py + puerta.h - 2);
+    ctx.stroke();
+
+    // Franja de color en la parte inferior (identifica el par llave/puerta)
+    if (puerta.color) {
+      ctx.fillStyle = hexToRgba(puerta.color, bloqueada ? 1 : 0.85);
+      ctx.fillRect(px + 3, py + puerta.h - 5, puerta.w - 6, 4);
+    }
+
+    // Candado coloreado si está bloqueada, "?" o "✓" según estado
+    if (bloqueada && puerta.color) {
+      const lx = px + puerta.w/2, lyLock = py - 8;
+      ctx.fillStyle = puerta.color;
+      ctx.fillRect(lx - 7, lyLock - 5, 14, 10);
+      ctx.strokeStyle = puerta.color;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(lx, lyLock - 6, 5.5, Math.PI, 0);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.beginPath();
+      ctx.arc(lx, lyLock, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (superada) {
+      ctx.fillStyle = '#7CFC00';
+      ctx.font = 'bold 14px "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('✓', px + puerta.w/2, py - 6);
+    } else if (cerca) {
+      ctx.fillStyle = 'rgba(255,255,200,0.8)';
+      ctx.font = 'bold 16px "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('🔓', px + puerta.w/2, py - 6);
+    }
+
+    // Partículas de brillo si está cerca (animado)
+    if (cerca) {
+      const t = Date.now() / 300;
+      for (let i = 0; i < 3; i++) {
+        const bx = px + puerta.w/2 + Math.sin(t + i * 2.1) * 14;
+        const by = py + 10 + Math.cos(t + i * 1.7) * 12;
+        ctx.fillStyle = 'rgba(255, 220, 100, ' + (0.3 + Math.sin(t + i) * 0.2) + ')';
+        ctx.beginPath();
+        ctx.arc(bx, by, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  // ---- ENEMIGOS ----
+  if (nivel.enemigos) {
+    for (const e of nivel.enemigos) {
+      if (e.eliminado) continue;
+      const ex = e.x, ey = e.y;
+      const pasos = Math.floor(animFrame / 8) % 2;
+
+      // Sombra
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.fillRect(ex + 2, ey + ENEMIGO_H + 2, ENEMIGO_W, 4);
+
+      // Cuerpo (gárgola gris)
+      ctx.fillStyle = '#6a5a8a';
+      ctx.beginPath();
+      ctx.ellipse(ex + ENEMIGO_W/2, ey + ENEMIGO_H/2 + 3, ENEMIGO_W/2, ENEMIGO_H/2, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Cabeza
+      ctx.fillStyle = '#5a4a7a';
+      ctx.beginPath();
+      ctx.arc(ex + ENEMIGO_W/2, ey + 6, 7, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Ojos (rojos, mirando hacia donde patrulla)
+      ctx.fillStyle = '#ff4040';
+      const ojoOff = e.dir === 1 ? 2 : -2;
+      ctx.fillRect(ex + ENEMIGO_W/2 - 5 + ojoOff, ey + 5, 3, 3);
+      ctx.fillRect(ex + ENEMIGO_W/2 + 2 + ojoOff, ey + 5, 3, 3);
+
+      // Cuernos
+      ctx.fillStyle = '#4a3a6a';
+      ctx.beginPath();
+      ctx.moveTo(ex + ENEMIGO_W/2 - 6, ey + 2);
+      ctx.lineTo(ex + ENEMIGO_W/2 - 3, ey - 3);
+      ctx.lineTo(ex + ENEMIGO_W/2 - 1, ey + 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(ex + ENEMIGO_W/2 + 6, ey + 2);
+      ctx.lineTo(ex + ENEMIGO_W/2 + 3, ey - 3);
+      ctx.lineTo(ex + ENEMIGO_W/2 + 1, ey + 2);
+      ctx.fill();
+
+      // Patas (animación)
+      ctx.fillStyle = '#4a3a6a';
+      const pataOff = pasos ? 2 : 0;
+      ctx.fillRect(ex + 3, ey + ENEMIGO_H - 2 - pataOff, 5, 4);
+      ctx.fillRect(ex + ENEMIGO_W - 8, ey + ENEMIGO_H - 2 - (pasos ? 0 : 2), 5, 4);
+    }
+  }
+
+  // ---- JEFE ----
+  if (nivel.jefe) {
+    const j = nivel.jefe;
+    const jx = j.x, jy = j.y;
+    const pasos = Math.floor(animFrame / 8) % 2;
+    const parpadea = Date.now() < j.invulnerableHasta && Math.floor(Date.now() / 80) % 2 === 0;
+
+    // Sombra
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(jx + 3, jy + JEFE_H + 3, JEFE_W, 5);
+
+    // Barra de vida
+    if (!j.derrotado) {
+      const bw = 56, bh = 6;
+      const bx = jx + JEFE_W/2 - bw/2, by = jy - 16;
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+      ctx.fillStyle = '#8a1b1b';
+      ctx.fillRect(bx, by, bw, bh);
+      ctx.fillStyle = j.vidaActual > j.vida * 0.4 ? '#2ecc71' : '#e74c3c';
+      ctx.fillRect(bx, by, bw * Math.max(0, j.vidaActual / j.vida), bh);
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(bx, by, bw, bh);
+    }
+
+    if (!parpadea) {
+      // Aura roja si está cargando
+      if (j.estado === 'carga') {
+        const tl = Date.now() / 60;
+        ctx.fillStyle = 'rgba(255,60,60,' + (0.25 + Math.sin(tl * 2) * 0.15) + ')';
+        ctx.beginPath();
+        ctx.ellipse(jx + JEFE_W/2, jy + JEFE_H/2, JEFE_W/2 + 12, JEFE_H/2 + 12, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Cuerpo (demonio grande)
+      ctx.fillStyle = j.derrotado ? '#5a4a3a' : (j.estado === 'carga' ? '#a0253a' : '#8a2a2a');
+      ctx.beginPath();
+      ctx.ellipse(jx + JEFE_W/2, jy + JEFE_H - 14, JEFE_W/2 - 2, JEFE_H - 20, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Cabeza
+      ctx.fillStyle = j.derrotado ? '#6a5a4a' : '#a03a2a';
+      ctx.beginPath();
+      ctx.arc(jx + JEFE_W/2, jy + 10, 11, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Ojos (amarillos, mirando hacia donde patrulla)
+      ctx.fillStyle = '#ffd24a';
+      const ojoOff = j.dir === 1 ? 3 : -3;
+      ctx.fillRect(jx + JEFE_W/2 - 9 + ojoOff, jy + 8, 4, 5);
+      ctx.fillRect(jx + JEFE_W/2 + 5 + ojoOff, jy + 8, 4, 5);
+
+      // Cuernos
+      ctx.fillStyle = '#6a1515';
+      ctx.beginPath();
+      ctx.moveTo(jx + JEFE_W/2 - 10, jy + 4);
+      ctx.lineTo(jx + JEFE_W/2 - 4, jy - 8);
+      ctx.lineTo(jx + JEFE_W/2 + 1, jy + 4);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(jx + JEFE_W/2 + 10, jy + 4);
+      ctx.lineTo(jx + JEFE_W/2 + 4, jy - 8);
+      ctx.lineTo(jx + JEFE_W/2 - 1, jy + 4);
+      ctx.fill();
+
+      // Brazos
+      ctx.fillStyle = '#7a2020';
+      const brazoOff = pasos ? 3 : 0;
+      ctx.fillRect(jx + 1, jy + 22 - brazoOff, 5, 14);
+      ctx.fillRect(jx + JEFE_W - 6, jy + 22 - (pasos ? 0 : 3), 5, 14);
+
+      // Patas
+      ctx.fillStyle = '#5a1515';
+      ctx.fillRect(jx + 5, jy + JEFE_H - 6, 6, 6);
+      ctx.fillRect(jx + JEFE_W - 11, jy + JEFE_H - 6, 6, 6);
+    }
+  }
+
+  // ---- PROYECTILES DEL JEFE ----
+  if (nivel.proyectiles) {
+    const tPro = Date.now() / 100;
+    for (const pr of nivel.proyectiles) {
+      const pxc = pr.x, pyc = pr.y;
+      const brillo = 0.7 + Math.sin(tPro * 3 + pr.x) * 0.3;
+
+      // Estela
+      ctx.strokeStyle = 'rgba(190,40,120,' + (brillo * 0.5) + ')';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(pxc, pyc);
+      ctx.lineTo(pxc - pr.vx * 6, pyc - pr.vy * 6);
+      ctx.stroke();
+
+      // Glow
+      const grad = ctx.createRadialGradient(pxc, pyc, 2, pxc, pyc, PROYECTIL_W);
+      grad.addColorStop(0, 'rgba(255,80,180,0.95)');
+      grad.addColorStop(0.5, 'rgba(190,40,120,0.55)');
+      grad.addColorStop(1, 'rgba(190,40,120,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(pxc, pyc, PROYECTIL_W, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Núcleo
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(pxc, pyc, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // ---- JUGADOR ----
+  const jx = jugador.x, jy = jugador.y;
+
+  // Sombra
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillRect(jx + 2, jy + 4, jugador.w, jugador.h);
+
+  // Cuerpo (camiseta roja)
+  ctx.fillStyle = '#e94560';
+  ctx.fillRect(jx, jy, jugador.w, jugador.h);
+
+  // Cinturón / pantalón
+  ctx.fillStyle = '#1a1a4e';
+  ctx.fillRect(jx, jy + jugador.h - 10, jugador.w, 10);
+
+  // Cabeza (gorro)
+  ctx.fillStyle = '#e94560';
+  ctx.beginPath();
+  ctx.arc(jx + jugador.w/2, jy - 2, 11, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Visera del gorro
+  ctx.fillStyle = '#c7354d';
+  ctx.fillRect(jx + 2, jy - 6, jugador.w - 4, 5);
+
+  // Ojos
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(jx + 5, jy + 6, 5, 5);
+  ctx.fillRect(jx + 12, jy + 6, 5, 5);
+  ctx.fillStyle = '#1a1a2e';
+  const ojoOff = jugador.direccion === 1 ? 1 : -1;
+  ctx.fillRect(jx + 6 + ojoOff, jy + 7, 3, 3);
+  ctx.fillRect(jx + 13 + ojoOff, jy + 7, 3, 3);
+
+  // Boca (sonrisa)
+  ctx.strokeStyle = '#1a1a2e';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(jx + jugador.w/2, jy + 15, 4, 0.1, Math.PI - 0.1);
+  ctx.stroke();
+
+  // Zapatos
+  ctx.fillStyle = '#4a2a1a';
+  ctx.fillRect(jx - 1, jy + jugador.h - 4, 8, 6);
+  ctx.fillRect(jx + jugador.w - 7, jy + jugador.h - 4, 8, 6);
+
+  // ---- INFO ADICIONAL ----
+  // Texto de nivel en el canvas (esquina superior izquierda, ya está en UI overlay)
+}
+
+// ============================================================
+//  BUCLE PRINCIPAL
+// ============================================================
+function bucleJuego() {
+  actualizar();
+  renderizar();
+  requestAnimationFrame(bucleJuego);
+}
+
+// ============================================================
+//  INICIAR
+// ============================================================
+cargarNivel(0);
+bucleJuego();
+
+// Prevenir que Space haga scroll
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space') e.preventDefault();
+});
+</script>
+</body>
+</html>
